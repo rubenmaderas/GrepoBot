@@ -78,8 +78,13 @@ class ModernBot {
 }
 
 const loader = setInterval(() => {
-    // Usamos uw.$ en lugar de $ a secas
+    // 1. Esperamos pacientemente a que la ventana de Grepolis (uw) y su jQuery (uw.$) existan
+    if (typeof uw === 'undefined' || typeof uw.$ !== 'function') return;
+    
+    // 2. Una vez que el motor existe, esperamos a que desaparezca la pantalla de carga del juego
     if (uw.$("#loader").length > 0) return;
+    
+    // 3. ¡Vía libre! Detenemos el temporizador y arrancamos el bot
     clearInterval(loader);
 
     const modernBot = new ModernBot();

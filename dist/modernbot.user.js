@@ -1,6 +1,6 @@
 // ==UserScript==
 // @name         ModernBot
-// @version      1.0.4
+// @version      1.0.5
 // @description  A modern grepolis bot
 // @match        http://*.grepolis.com/game/*
 // @match        https://*.grepolis.com/game/*
@@ -245,6 +245,10 @@ class AutoBootcamp extends ModernUtils {
 class AutoBuild extends ModernUtils {
     constructor() {
         super();
+        
+        // CHIVATO DE CONSOLA PARA COMPROBAR CACHÉ
+        console.log("%c🛠️ ModernBot: Cargando AutoBuild (VERSIÓN CON BOTÓN RESET)", "color: #ffcc00; font-size: 14px; font-weight: bold; background: #23160a; padding: 5px; border: 1px solid #ffcc00; border-radius: 4px;");
+
         this.towns_buildings = this.loadSettings('buildings', {});
         this.shiftHeld = false;
         this.lastBuildAttempt = {}; 
@@ -259,7 +263,88 @@ class AutoBuild extends ModernUtils {
         } catch (e) {
             console.error("Error subscribing to window open event:", e);
         }
+
+        // Loop visual que actualiza la interfaz cada segundo sin recargar
+        setInterval(this.refreshUI, 1000);
     }
+
+    // Función silenciosa para mantener la interfaz actualizada en tiempo real
+    refreshUI = () => {
+        try {
+            let town = uw.ITowns.getCurrentTown();
+            if (!town) return;
+            let town_id = town.id.toString();
+
+            if (uw.$(`#build_settings_${town_id}`).length === 0) return;
+
+            let town_buildings = this.towns_buildings[town_id];
+            let buildings = { ...town.buildings().attributes };
+
+            if (town.buildingOrders && town.buildingOrders().models) {
+                for (let order of town.buildingOrders().models) {
+                    if (!order.attributes.tear_down) {
+                        buildings[order.attributes.building_type] += 1;
+                    }
+                }
+            }
+
+            const buildingKeys = ['main', 'storage', 'farm', 'academy', 'temple', 'barracks', 'docks', 'market', 'hide', 'lumber', 'stoner', 'ironer', 'wall'];
+
+            for (let key of buildingKeys) {
+                let targetLvl = (town_buildings && town_buildings[key] !== undefined) ? town_buildings[key] : buildings[key];
+                let actual_lvl = buildings[key];
+
+                let color = 'lime';
+                if (actual_lvl > targetLvl) color = 'red';
+                else if (actual_lvl < targetLvl) color = 'orange';
+
+                uw.$(`#build_settings_${town_id} #build_lvl_${key}`).css('color', color).text(targetLvl);
+            }
+
+            let isAutoBuildOn = !!this.towns_buildings[town_id];
+            let $title = uw.$('#auto_build_title');
+            if (isAutoBuildOn && $title.css('filter') === 'none') {
+                $title.css('filter', 'brightness(100%) saturate(186%) hue-rotate(241deg)');
+            } else if (!isAutoBuildOn && $title.css('filter') !== 'none') {
+                $title.css('filter', '');
+            }
+        } catch (e) {
+            // Ignoramos errores menores para que no rompa el loop
+        }
+    };
+
+    // NUEVO: Función para resetear todos los objetivos al nivel actual + cola
+    resetLevels = (town_id) => {
+        if (!town_id) return;
+        const town = uw.ITowns.getTown(town_id);
+        if (!town) return;
+
+        if (!this.towns_buildings[town_id]) {
+            this.towns_buildings[town_id] = {};
+        }
+
+        let buildings = { ...town.buildings().attributes };
+
+        if (town.buildingOrders && town.buildingOrders().models) {
+            for (let order of town.buildingOrders().models) {
+                if (!order.attributes.tear_down) {
+                    buildings[order.attributes.building_type] += 1;
+                }
+            }
+        }
+
+        const buildingKeys = ['main', 'storage', 'farm', 'academy', 'temple', 'barracks', 'docks', 'market', 'hide', 'lumber', 'stoner', 'ironer', 'wall'];
+        
+        buildingKeys.forEach(key => {
+            this.towns_buildings[town_id][key] = buildings[key];
+        });
+
+        this.saveSettings('buildings', this.towns_buildings);
+        
+        // Forzamos un refresco inmediato de la interfaz
+        this.refreshUI();
+        console.log(`[AutoBuild] ${town.getName()}: Niveles reseteados al estado actual.`);
+    };
 
     render() {
         const $container = uw.$('<div></div>');
@@ -290,17 +375,20 @@ class AutoBuild extends ModernUtils {
             <div class="game_border_corner corner2"></div>
             <div class="game_border_corner corner3"></div>
             <div class="game_border_corner corner4"></div>
-            <div id="auto_build_title" style="cursor: pointer; filter: ${town_id && this.towns_buildings[town_id] ? 'brightness(100%) saturate(186%) hue-rotate(241deg)' : ''}" class="game_header bold" onclick="window.modernBot.autoBuild.toggle()"> Auto Build 
-                <div style="position: absolute; right: 10px; top: 4px; font-size: 10px;"> (clic para activar/desactivar) </div>
+            
+            <div id="auto_build_title" style="cursor: pointer; filter: ${town_id && this.towns_buildings[town_id] ? 'brightness(100%) saturate(186%) hue-rotate(241deg)' : 'none'}" class="game_header bold" onclick="window.modernBot.autoBuild.toggle()"> Auto Build 
+                <div style="position: absolute; right: 10px; top: 2px; font-size: 10px; display: flex; align-items: center; gap: 10px;"> 
+                    <div onclick="event.stopPropagation(); window.modernBot.autoBuild.resetLevels(${town_id});" style="background: #5b391e; border: 1px solid #1a1107; padding: 2px 6px; border-radius: 3px; color: #ffcc00; box-shadow: 0 0 2px #000;" title="Igualar objetivos a la ciudad actual + cola">🔄 Resetear</div>
+                    <div>(clic para activar/desactivar)</div>
+                </div>
             </div>
+
             <div id="buildings_lvl_buttons" style="padding: 10px; background: #23160a; min-height: 50px;">`;
 
         if (town) {
             let town_buildings = this.towns_buildings?.[town_id] ?? { ...town.buildings()?.attributes } ?? {};
             let buildings = { ...town.buildings().attributes };
 
-            // ==========================================
-            // LÓGICA DE COLA: Sumar edificios en construcción
             if (town.buildingOrders && town.buildingOrders().models) {
                 for (let order of town.buildingOrders().models) {
                     if (!order.attributes.tear_down) {
@@ -308,7 +396,6 @@ class AutoBuild extends ModernUtils {
                     }
                 }
             }
-            // ==========================================
 
             const buildingImages = {
                 main: 'Senado_50x50.png',
@@ -346,7 +433,6 @@ class AutoBuild extends ModernUtils {
                 let color = 'lime';
                 let targetLvl = town_buildings[buildingKey] !== undefined ? town_buildings[buildingKey] : buildings[buildingKey];
                 
-                // Comparación con los edificios ya sumados en la cola
                 if (buildings[buildingKey] > targetLvl) color = 'red';
                 else if (buildings[buildingKey] < targetLvl) color = 'orange';
 
@@ -439,16 +525,28 @@ class AutoBuild extends ModernUtils {
         }
 
         let town_buildings = this.towns_buildings[town_id];
-        const current_lvl = parseInt(uw.$(`#build_settings_${town_id} #build_lvl_${name}`).text()) || 0;
+        const current_target_lvl = parseInt(uw.$(`#build_settings_${town_id} #build_lvl_${name}`).text()) || 0;
+
+        let actual_lvl = town.buildings().attributes[name];
+        if (town.buildingOrders && town.buildingOrders().models) {
+            for (let order of town.buildingOrders().models) {
+                if (!order.attributes.tear_down && order.attributes.building_type === name) {
+                    actual_lvl += 1;
+                }
+            }
+        }
         
-        if (d) {
-            d = this.shiftHeld ? d * 10 : d;
-            town_buildings[name] = Math.min(Math.max(current_lvl + d, min_level), max_level);
+        if (d !== 0) {
+            let delta = this.shiftHeld ? d * 10 : d;
+            town_buildings[name] = Math.min(Math.max(current_target_lvl + delta, min_level), max_level);
         } else {
-            town_buildings[name] = town.buildings().attributes[name];
+            town_buildings[name] = actual_lvl; 
         }
 
-        const color = town_buildings[name] > town.buildings().attributes[name] ? 'orange' : 'lime';
+        let color = 'lime';
+        if (actual_lvl > town_buildings[name]) color = 'red';
+        else if (actual_lvl < town_buildings[name]) color = 'orange';
+
         uw.$(`#build_settings_${town_id} #build_lvl_${name}`).css('color', color).text(town_buildings[name]);
 
         this.saveSettings('buildings', this.towns_buildings);
@@ -475,7 +573,7 @@ class AutoBuild extends ModernUtils {
             delete this.towns_buildings[town_id];
             this.saveSettings('buildings', this.towns_buildings);
             
-            uw.$('#auto_build_title').css('filter', '');
+            uw.$('#auto_build_title').css('filter', 'none');
         }
     };
 
@@ -496,7 +594,7 @@ class AutoBuild extends ModernUtils {
                 this.saveSettings('buildings', this.towns_buildings);
                 
                 if (uw.ITowns.getCurrentTown().id == town_id) {
-                    uw.$('#auto_build_title').css('filter', '');
+                    uw.$('#auto_build_title').css('filter', 'none');
                 }
                 continue;
             }
@@ -596,6 +694,7 @@ class AutoBuild extends ModernUtils {
         }
     };
 }
+
 
 // Module: autoFarm.js
 class AutoFarm extends ModernUtils {
@@ -952,8 +1051,13 @@ class ModernBot {
 }
 
 const loader = setInterval(() => {
-    // Usamos uw.$ en lugar de $ a secas
+    // 1. Esperamos pacientemente a que la ventana de Grepolis (uw) y su jQuery (uw.$) existan
+    if (typeof uw === 'undefined' || typeof uw.$ !== 'function') return;
+    
+    // 2. Una vez que el motor existe, esperamos a que desaparezca la pantalla de carga del juego
     if (uw.$("#loader").length > 0) return;
+    
+    // 3. ¡Vía libre! Detenemos el temporizador y arrancamos el bot
     clearInterval(loader);
 
     const modernBot = new ModernBot();
