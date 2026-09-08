@@ -27,13 +27,11 @@ class AutoBuild extends ModernUtils {
             if (!town) return;
             let town_id = town.id.toString();
 
-            // Si la ventana del bot no está abierta, no gastamos recursos
             if (uw.$(`#build_settings_${town_id}`).length === 0) return;
 
             let town_buildings = this.towns_buildings[town_id];
             let buildings = { ...town.buildings().attributes };
 
-            // Leemos la cola de construcción en vivo
             if (town.buildingOrders && town.buildingOrders().models) {
                 for (let order of town.buildingOrders().models) {
                     if (!order.attributes.tear_down) {
@@ -44,7 +42,6 @@ class AutoBuild extends ModernUtils {
 
             const buildingKeys = ['main', 'storage', 'farm', 'academy', 'temple', 'barracks', 'docks', 'market', 'hide', 'lumber', 'stoner', 'ironer', 'wall'];
 
-            // Comparamos y pintamos cada edificio si hubo cambios
             for (let key of buildingKeys) {
                 let targetLvl = (town_buildings && town_buildings[key] !== undefined) ? town_buildings[key] : buildings[key];
                 let actual_lvl = buildings[key];
@@ -53,11 +50,9 @@ class AutoBuild extends ModernUtils {
                 if (actual_lvl > targetLvl) color = 'red';
                 else if (actual_lvl < targetLvl) color = 'orange';
 
-                // Actualizamos el número y el color al instante
                 uw.$(`#build_settings_${town_id} #build_lvl_${key}`).css('color', color).text(targetLvl);
             }
 
-            // Sincronizar también el brillo del título principal por si el bot terminó sus tareas y se apagó solo
             let isAutoBuildOn = !!this.towns_buildings[town_id];
             let $title = uw.$('#auto_build_title');
             if (isAutoBuildOn && $title.css('filter') === 'none') {
@@ -68,6 +63,39 @@ class AutoBuild extends ModernUtils {
         } catch (e) {
             // Ignoramos errores menores para que no rompa el loop
         }
+    };
+
+    // NUEVO: Función para resetear todos los objetivos al nivel actual + cola
+    resetLevels = (town_id) => {
+        if (!town_id) return;
+        const town = uw.ITowns.getTown(town_id);
+        if (!town) return;
+
+        if (!this.towns_buildings[town_id]) {
+            this.towns_buildings[town_id] = {};
+        }
+
+        let buildings = { ...town.buildings().attributes };
+
+        if (town.buildingOrders && town.buildingOrders().models) {
+            for (let order of town.buildingOrders().models) {
+                if (!order.attributes.tear_down) {
+                    buildings[order.attributes.building_type] += 1;
+                }
+            }
+        }
+
+        const buildingKeys = ['main', 'storage', 'farm', 'academy', 'temple', 'barracks', 'docks', 'market', 'hide', 'lumber', 'stoner', 'ironer', 'wall'];
+        
+        buildingKeys.forEach(key => {
+            this.towns_buildings[town_id][key] = buildings[key];
+        });
+
+        this.saveSettings('buildings', this.towns_buildings);
+        
+        // Forzamos un refresco inmediato de la interfaz
+        this.refreshUI();
+        console.log(`[AutoBuild] ${town.getName()}: Niveles reseteados al estado actual.`);
     };
 
     render() {
@@ -99,16 +127,20 @@ class AutoBuild extends ModernUtils {
             <div class="game_border_corner corner2"></div>
             <div class="game_border_corner corner3"></div>
             <div class="game_border_corner corner4"></div>
+            
             <div id="auto_build_title" style="cursor: pointer; filter: ${town_id && this.towns_buildings[town_id] ? 'brightness(100%) saturate(186%) hue-rotate(241deg)' : 'none'}" class="game_header bold" onclick="window.modernBot.autoBuild.toggle()"> Auto Build 
-                <div style="position: absolute; right: 10px; top: 4px; font-size: 10px;"> (clic para activar/desactivar) </div>
+                <div style="position: absolute; right: 10px; top: 2px; font-size: 10px; display: flex; align-items: center; gap: 10px;"> 
+                    <div onclick="event.stopPropagation(); window.modernBot.autoBuild.resetLevels(${town_id});" style="background: #5b391e; border: 1px solid #1a1107; padding: 2px 6px; border-radius: 3px; color: #ffcc00; box-shadow: 0 0 2px #000;" title="Igualar objetivos a la ciudad actual + cola">🔄 Resetear</div>
+                    <div>(clic para activar/desactivar)</div>
+                </div>
             </div>
+
             <div id="buildings_lvl_buttons" style="padding: 10px; background: #23160a; min-height: 50px;">`;
 
         if (town) {
             let town_buildings = this.towns_buildings?.[town_id] ?? { ...town.buildings()?.attributes } ?? {};
             let buildings = { ...town.buildings().attributes };
 
-            // LÓGICA DE COLA: Sumar edificios en construcción
             if (town.buildingOrders && town.buildingOrders().models) {
                 for (let order of town.buildingOrders().models) {
                     if (!order.attributes.tear_down) {
@@ -153,7 +185,6 @@ class AutoBuild extends ModernUtils {
                 let color = 'lime';
                 let targetLvl = town_buildings[buildingKey] !== undefined ? town_buildings[buildingKey] : buildings[buildingKey];
                 
-                // Comparación con los edificios ya sumados en la cola
                 if (buildings[buildingKey] > targetLvl) color = 'red';
                 else if (buildings[buildingKey] < targetLvl) color = 'orange';
 
@@ -248,7 +279,6 @@ class AutoBuild extends ModernUtils {
         let town_buildings = this.towns_buildings[town_id];
         const current_target_lvl = parseInt(uw.$(`#build_settings_${town_id} #build_lvl_${name}`).text()) || 0;
 
-        // 1. Calcular el nivel real proyectado (Nivel Base + Cola de construcción)
         let actual_lvl = town.buildings().attributes[name];
         if (town.buildingOrders && town.buildingOrders().models) {
             for (let order of town.buildingOrders().models) {
@@ -258,17 +288,14 @@ class AutoBuild extends ModernUtils {
             }
         }
         
-        // 2. Aplicar el cambio de nivel
         if (d !== 0) {
             let delta = this.shiftHeld ? d * 10 : d;
             town_buildings[name] = Math.min(Math.max(current_target_lvl + delta, min_level), max_level);
         } else {
-            // Si d es 0 (clic en la imagen central), reseteamos el objetivo al nivel real proyectado
             town_buildings[name] = actual_lvl; 
         }
 
-        // 3. Pintar usando tus reglas exactas
-        let color = 'lime'; // Verde por defecto si son iguales
+        let color = 'lime';
         if (actual_lvl > town_buildings[name]) color = 'red';
         else if (actual_lvl < town_buildings[name]) color = 'orange';
 
