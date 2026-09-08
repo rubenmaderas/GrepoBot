@@ -1,6 +1,10 @@
 class AutoBuild extends ModernUtils {
     constructor() {
         super();
+        
+        // CHIVATO DE CONSOLA PARA COMPROBAR CACHÉ
+        console.log("%c🛠️ ModernBot: Cargando AutoBuild (VERSIÓN CON BOTÓN RESET)", "color: #ffcc00; font-size: 14px; font-weight: bold; background: #23160a; padding: 5px; border: 1px solid #ffcc00; border-radius: 4px;");
+
         this.towns_buildings = this.loadSettings('buildings', {});
         this.shiftHeld = false;
         this.lastBuildAttempt = {}; 
