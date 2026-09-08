@@ -33,7 +33,7 @@ Place this into a tampermokey script:
 ```
 // ==UserScript==
 // @name         GrepoTest
-// @author       Sau1707
+// @author       rmaderas
 // @description
 // @version      1.0.0
 // @match        http://*.grepolis.com/game/*
