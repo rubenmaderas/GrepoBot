@@ -94,11 +94,9 @@ class AutoBuild extends ModernUtils {
                 if (buildings[buildingKey] > targetLvl) color = 'red';
                 else if (buildings[buildingKey] < targetLvl) color = 'orange';
 
-                // Ruta directa a tu repositorio de GitHub (asumiendo que la rama principal es "main")
+                // Ruta directa a tus imágenes en GitHub
                 const githubRawUrl = 'https://raw.githubusercontent.com/rubenmaderas/GrepoBot/main/img/';
                 let imgFileName = buildingImages[buildingKey] || 'Senado_50x50.png';
-                
-                // Aseguramos que las tildes y espacios no rompan la URL
                 let imgSrc = githubRawUrl + encodeURIComponent(imgFileName);
 
                 return `
