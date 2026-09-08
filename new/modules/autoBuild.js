@@ -55,6 +55,23 @@ class AutoBuild extends ModernUtils {
             let town_buildings = this.towns_buildings?.[town_id] ?? { ...town.buildings()?.attributes } ?? {};
             let buildings = { ...town.buildings().attributes };
 
+            // Mapeo exacto de las claves del juego con los nombres de tus archivos en GitHub
+            const buildingImages = {
+                main: 'Senado_50x50.png',
+                storage: 'Almacén_50x50.png',
+                farm: 'Granja_50x50.png',
+                academy: 'Academia_50x50.png',
+                temple: 'Templo_50x50.png',
+                barracks: 'Cuartel_50x50.png',
+                docks: 'Puerto_50x50.png',
+                market: 'Mercado_50x50.png',
+                hide: 'Cueva_50x50.png',
+                lumber: 'Aserradero_50x50.png',
+                stoner: 'Cantera_50x50.png',
+                ironer: 'Mina_plata_50x50.png',
+                wall: 'Muralla_50x50.png'
+            };
+
             const buildingFullNames = {
                 main: 'Senado',
                 storage: 'Almacén',
@@ -67,7 +84,7 @@ class AutoBuild extends ModernUtils {
                 hide: 'Cueva',
                 lumber: 'Aserradero',
                 stoner: 'Cantera',
-                ironer: 'Mina plata',
+                ironer: 'Mina de plata',
                 wall: 'Muralla'
             };
 
@@ -77,15 +94,19 @@ class AutoBuild extends ModernUtils {
                 if (buildings[buildingKey] > targetLvl) color = 'red';
                 else if (buildings[buildingKey] < targetLvl) color = 'orange';
 
+                // Ruta directa a tu repositorio de GitHub (asumiendo que la rama principal es "main")
+                const githubRawUrl = 'https://raw.githubusercontent.com/rubenmaderas/GrepoBot/main/img/';
+                let imgFileName = buildingImages[buildingKey] || 'Senado_50x50.png';
+                
+                // Aseguramos que las tildes y espacios no rompan la URL
+                let imgSrc = githubRawUrl + encodeURIComponent(imgFileName);
+
                 return `
-                <div class="auto_build_box" onclick="window.modernBot?.autoBuild?.editBuildingLevel(${town_id}, '${buildingKey}', 0)" title="${fullName}" style="cursor: pointer; display: inline-block; margin: 4px; text-align: center; vertical-align: top;">
-                    <div style="width: 68px; height: 34px; position: relative; margin: 0 auto; background: #1a1107; border: 1px solid #7c6142; border-radius: 2px; display: flex; align-items: center; justify-content: center; padding: 0 2px;">
-                        
-                        <!-- TEXTO COMPLETO CENTRADO, SIN ETIQUETAS DE IMAGEN -->
-                        <span style="color: #ffd700; font-size: 10px; font-weight: bold; font-family: sans-serif; text-align: center; line-height: 1.1; word-break: break-word;">${fullName}</span>
-                        
-                        <div onclick="event.stopPropagation(); window.modernBot?.autoBuild?.editBuildingLevel(${town_id}, '${buildingKey}', 1)" style="position:absolute; top:-6px; right:-6px; cursor:pointer; color:lime; font-size:11px; font-weight:bold; z-index:2;" title="Subir nivel">▲</div>
-                        <div onclick="event.stopPropagation(); window.modernBot?.autoBuild?.editBuildingLevel(${town_id}, '${buildingKey}', -1)" style="position:absolute; bottom:-6px; right:-6px; cursor:pointer; color:red; font-size:11px; font-weight:bold; z-index:2;" title="Bajar nivel">▼</div>
+                <div class="auto_build_box" onclick="window.modernBot?.autoBuild?.editBuildingLevel(${town_id}, '${buildingKey}', 0)" title="${fullName}" style="cursor: pointer; display: inline-block; margin: 3px; text-align: center; vertical-align: top;">
+                    <div style="width: 36px; height: 34px; position: relative; margin: 0 auto; background: #1a1107; border: 1px solid #7c6142; border-radius: 2px; display: flex; align-items: center; justify-content: center;">
+                        <img src="${imgSrc}" style="width: 28px; height: 28px; object-fit: contain;" alt="${fullName}" />
+                        <div onclick="event.stopPropagation(); window.modernBot?.autoBuild?.editBuildingLevel(${town_id}, '${buildingKey}', 1)" style="position:absolute; top:-6px; right:-10px; cursor:pointer; color:lime; font-size:11px; font-weight:bold; z-index:2;" title="Subir nivel">▲</div>
+                        <div onclick="event.stopPropagation(); window.modernBot?.autoBuild?.editBuildingLevel(${town_id}, '${buildingKey}', -1)" style="position:absolute; bottom:-6px; right:-10px; cursor:pointer; color:red; font-size:11px; font-weight:bold; z-index:2;" title="Bajar nivel">▼</div>
                     </div>
                     <p style="color: ${color}; font-size: 11px; margin: 4px 0 0 0; font-weight: bold;" id="build_lvl_${buildingKey}">${targetLvl}</p>
                 </div>`;
