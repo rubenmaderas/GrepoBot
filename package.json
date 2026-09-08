@@ -17,7 +17,8 @@
         "gulp-concat": "^2.6.1",
         "gulp-footer": "^2.1.0",
         "gulp-uglify": "^3.0.2",
-        "through2": "^4.0.2"
+        "through2": "^4.0.2",
+        "webpack-cli": "^7.2.3"
     },
     "dependencies": {
         "@types/jquery": "^3.5.16",
