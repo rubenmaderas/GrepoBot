@@ -15,7 +15,60 @@ class AutoBuild extends ModernUtils {
         } catch (e) {
             console.error("Error subscribing to window open event:", e);
         }
+
+        // Loop visual que actualiza la interfaz cada segundo sin recargar
+        setInterval(this.refreshUI, 1000);
     }
+
+    // Función silenciosa para mantener la interfaz actualizada en tiempo real
+    refreshUI = () => {
+        try {
+            let town = uw.ITowns.getCurrentTown();
+            if (!town) return;
+            let town_id = town.id.toString();
+
+            // Si la ventana del bot no está abierta, no gastamos recursos
+            if (uw.$(`#build_settings_${town_id}`).length === 0) return;
+
+            let town_buildings = this.towns_buildings[town_id];
+            let buildings = { ...town.buildings().attributes };
+
+            // Leemos la cola de construcción en vivo
+            if (town.buildingOrders && town.buildingOrders().models) {
+                for (let order of town.buildingOrders().models) {
+                    if (!order.attributes.tear_down) {
+                        buildings[order.attributes.building_type] += 1;
+                    }
+                }
+            }
+
+            const buildingKeys = ['main', 'storage', 'farm', 'academy', 'temple', 'barracks', 'docks', 'market', 'hide', 'lumber', 'stoner', 'ironer', 'wall'];
+
+            // Comparamos y pintamos cada edificio si hubo cambios
+            for (let key of buildingKeys) {
+                let targetLvl = (town_buildings && town_buildings[key] !== undefined) ? town_buildings[key] : buildings[key];
+                let actual_lvl = buildings[key];
+
+                let color = 'lime';
+                if (actual_lvl > targetLvl) color = 'red';
+                else if (actual_lvl < targetLvl) color = 'orange';
+
+                // Actualizamos el número y el color al instante
+                uw.$(`#build_settings_${town_id} #build_lvl_${key}`).css('color', color).text(targetLvl);
+            }
+
+            // Sincronizar también el brillo del título principal por si el bot terminó sus tareas y se apagó solo
+            let isAutoBuildOn = !!this.towns_buildings[town_id];
+            let $title = uw.$('#auto_build_title');
+            if (isAutoBuildOn && $title.css('filter') === 'none') {
+                $title.css('filter', 'brightness(100%) saturate(186%) hue-rotate(241deg)');
+            } else if (!isAutoBuildOn && $title.css('filter') !== 'none') {
+                $title.css('filter', '');
+            }
+        } catch (e) {
+            // Ignoramos errores menores para que no rompa el loop
+        }
+    };
 
     render() {
         const $container = uw.$('<div></div>');
@@ -46,7 +99,7 @@ class AutoBuild extends ModernUtils {
             <div class="game_border_corner corner2"></div>
             <div class="game_border_corner corner3"></div>
             <div class="game_border_corner corner4"></div>
-            <div id="auto_build_title" style="cursor: pointer; filter: ${town_id && this.towns_buildings[town_id] ? 'brightness(100%) saturate(186%) hue-rotate(241deg)' : ''}" class="game_header bold" onclick="window.modernBot.autoBuild.toggle()"> Auto Build 
+            <div id="auto_build_title" style="cursor: pointer; filter: ${town_id && this.towns_buildings[town_id] ? 'brightness(100%) saturate(186%) hue-rotate(241deg)' : 'none'}" class="game_header bold" onclick="window.modernBot.autoBuild.toggle()"> Auto Build 
                 <div style="position: absolute; right: 10px; top: 4px; font-size: 10px;"> (clic para activar/desactivar) </div>
             </div>
             <div id="buildings_lvl_buttons" style="padding: 10px; background: #23160a; min-height: 50px;">`;
@@ -55,7 +108,6 @@ class AutoBuild extends ModernUtils {
             let town_buildings = this.towns_buildings?.[town_id] ?? { ...town.buildings()?.attributes } ?? {};
             let buildings = { ...town.buildings().attributes };
 
-            // ==========================================
             // LÓGICA DE COLA: Sumar edificios en construcción
             if (town.buildingOrders && town.buildingOrders().models) {
                 for (let order of town.buildingOrders().models) {
@@ -64,7 +116,6 @@ class AutoBuild extends ModernUtils {
                     }
                 }
             }
-            // ==========================================
 
             const buildingImages = {
                 main: 'Senado_50x50.png',
@@ -247,7 +298,7 @@ class AutoBuild extends ModernUtils {
             delete this.towns_buildings[town_id];
             this.saveSettings('buildings', this.towns_buildings);
             
-            uw.$('#auto_build_title').css('filter', '');
+            uw.$('#auto_build_title').css('filter', 'none');
         }
     };
 
@@ -268,7 +319,7 @@ class AutoBuild extends ModernUtils {
                 this.saveSettings('buildings', this.towns_buildings);
                 
                 if (uw.ITowns.getCurrentTown().id == town_id) {
-                    uw.$('#auto_build_title').css('filter', '');
+                    uw.$('#auto_build_title').css('filter', 'none');
                 }
                 continue;
             }
