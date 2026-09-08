@@ -195,16 +195,32 @@ class AutoBuild extends ModernUtils {
         }
 
         let town_buildings = this.towns_buildings[town_id];
-        const current_lvl = parseInt(uw.$(`#build_settings_${town_id} #build_lvl_${name}`).text()) || 0;
+        const current_target_lvl = parseInt(uw.$(`#build_settings_${town_id} #build_lvl_${name}`).text()) || 0;
+
+        // 1. Calcular el nivel real proyectado (Nivel Base + Cola de construcción)
+        let actual_lvl = town.buildings().attributes[name];
+        if (town.buildingOrders && town.buildingOrders().models) {
+            for (let order of town.buildingOrders().models) {
+                if (!order.attributes.tear_down && order.attributes.building_type === name) {
+                    actual_lvl += 1;
+                }
+            }
+        }
         
-        if (d) {
-            d = this.shiftHeld ? d * 10 : d;
-            town_buildings[name] = Math.min(Math.max(current_lvl + d, min_level), max_level);
+        // 2. Aplicar el cambio de nivel
+        if (d !== 0) {
+            let delta = this.shiftHeld ? d * 10 : d;
+            town_buildings[name] = Math.min(Math.max(current_target_lvl + delta, min_level), max_level);
         } else {
-            town_buildings[name] = town.buildings().attributes[name];
+            // Si d es 0 (clic en la imagen central), reseteamos el objetivo al nivel real proyectado
+            town_buildings[name] = actual_lvl; 
         }
 
-        const color = town_buildings[name] > town.buildings().attributes[name] ? 'orange' : 'lime';
+        // 3. Pintar usando tus reglas exactas
+        let color = 'lime'; // Verde por defecto si son iguales
+        if (actual_lvl > town_buildings[name]) color = 'red';
+        else if (actual_lvl < town_buildings[name]) color = 'orange';
+
         uw.$(`#build_settings_${town_id} #build_lvl_${name}`).css('color', color).text(town_buildings[name]);
 
         this.saveSettings('buildings', this.towns_buildings);
