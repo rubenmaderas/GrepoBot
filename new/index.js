@@ -78,7 +78,8 @@ class ModernBot {
 }
 
 const loader = setInterval(() => {
-    if ($("#loader").length > 0) return;
+    // Usamos uw.$ en lugar de $ a secas
+    if (uw.$("#loader").length > 0) return;
     clearInterval(loader);
 
     const modernBot = new ModernBot();
