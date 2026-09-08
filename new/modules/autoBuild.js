@@ -55,7 +55,8 @@ class AutoBuild extends ModernUtils {
             let town_buildings = this.towns_buildings?.[town_id] ?? { ...town.buildings()?.attributes } ?? {};
             let buildings = { ...town.buildings().attributes };
 
-            // NUEVO: Sumar los edificios que ya están en la cola de construcción para el cálculo visual
+            // ==========================================
+            // LÓGICA DE COLA: Sumar edificios en construcción
             if (town.buildingOrders && town.buildingOrders().models) {
                 for (let order of town.buildingOrders().models) {
                     if (!order.attributes.tear_down) {
@@ -63,8 +64,8 @@ class AutoBuild extends ModernUtils {
                     }
                 }
             }
+            // ==========================================
 
-            // Mapeo exacto de las claves del juego con los nombres de tus archivos en GitHub
             const buildingImages = {
                 main: 'Senado_50x50.png',
                 storage: 'Almacén_50x50.png',
@@ -100,10 +101,11 @@ class AutoBuild extends ModernUtils {
             const getBuildingHtml = (buildingKey, fullName) => {
                 let color = 'lime';
                 let targetLvl = town_buildings[buildingKey] !== undefined ? town_buildings[buildingKey] : buildings[buildingKey];
+                
+                // Comparación con los edificios ya sumados en la cola
                 if (buildings[buildingKey] > targetLvl) color = 'red';
                 else if (buildings[buildingKey] < targetLvl) color = 'orange';
 
-                // Ruta directa a tus imágenes en GitHub
                 const githubRawUrl = 'https://raw.githubusercontent.com/rubenmaderas/GrepoBot/main/img/';
                 let imgFileName = buildingImages[buildingKey] || 'Senado_50x50.png';
                 let imgSrc = githubRawUrl + encodeURIComponent(imgFileName);
@@ -215,7 +217,6 @@ class AutoBuild extends ModernUtils {
         let town_id = town.id.toString();
 
         if (!(town_id in this.towns_buildings)) {
-            console.log(`[AutoBuild] ${town.name}: Auto Build On`);
             this.towns_buildings[town_id] = {};
             
             let buildingsList = ['main', 'storage', 'farm', 'academy', 'temple', 'barracks', 'docks', 'market', 'hide', 'lumber', 'stoner', 'ironer', 'wall'];
@@ -229,7 +230,6 @@ class AutoBuild extends ModernUtils {
         } else {
             delete this.towns_buildings[town_id];
             this.saveSettings('buildings', this.towns_buildings);
-            console.log(`[AutoBuild] ${town.name}: Auto Build Off`);
             
             uw.$('#auto_build_title').css('filter', '');
         }
@@ -250,8 +250,6 @@ class AutoBuild extends ModernUtils {
             if (this.isDone(town_id)) {
                 delete this.towns_buildings[town_id];
                 this.saveSettings('buildings', this.towns_buildings);
-                const town = uw.ITowns.getTown(town_id);
-                console.log(`[AutoBuild] ${town.name}: ¡Todos los objetivos de construcción alcanzados!`);
                 
                 if (uw.ITowns.getCurrentTown().id == town_id) {
                     uw.$('#auto_build_title').css('filter', '');
@@ -346,7 +344,6 @@ class AutoBuild extends ModernUtils {
 
         try {
             uw.gpAjax.ajaxPost('frontend_bridge', 'execute', data);
-            console.log(`[AutoBuild] ${town.getName()}: Orden de mejora enviada para [${type.toUpperCase()}]`);
             await this.sleep(1500);
             return true;
         } catch (e) {
