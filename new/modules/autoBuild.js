@@ -55,6 +55,15 @@ class AutoBuild extends ModernUtils {
             let town_buildings = this.towns_buildings?.[town_id] ?? { ...town.buildings()?.attributes } ?? {};
             let buildings = { ...town.buildings().attributes };
 
+            // NUEVO: Sumar los edificios que ya están en la cola de construcción para el cálculo visual
+            if (town.buildingOrders && town.buildingOrders().models) {
+                for (let order of town.buildingOrders().models) {
+                    if (!order.attributes.tear_down) {
+                        buildings[order.attributes.building_type] += 1;
+                    }
+                }
+            }
+
             // Mapeo exacto de las claves del juego con los nombres de tus archivos en GitHub
             const buildingImages = {
                 main: 'Senado_50x50.png',
