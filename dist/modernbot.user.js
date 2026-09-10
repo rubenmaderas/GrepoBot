@@ -1,6 +1,6 @@
 // ==UserScript==
 // @name         ModernBot
-// @version      1.0.5
+// @version      1.0.7
 // @description  A modern grepolis bot
 // @match        http://*.grepolis.com/game/*
 // @match        https://*.grepolis.com/game/*
@@ -700,10 +700,10 @@ class AutoBuild extends ModernUtils {
 class AutoFarm extends ModernUtils {
     constructor() {
         super();
-
         this.active = this.loadSettings('farm_active', false);
         this.duration = this.loadSettings('farm_duration', 1);
-        this.last_farm_time = 0; // NUEVO: Candado de seguridad
+        this.last_farm_time = 0; 
+        this.is_farming = false; // Candado de seguridad
     }
 
     render() {
@@ -714,7 +714,7 @@ class AutoFarm extends ModernUtils {
         this.$title.click(() => this.toggle());
         if (this.active) this.$title.addClass('active');
 
-        this.$buttonBox = $('<div>').css({ "padding": "5px" })
+        this.$buttonBox = uw.$('<div>').css({ "padding": "5px", "display": "flex", "gap": "5px" });
         this.$container.append(this.$buttonBox);
 
         this.$button1 = this.getButtonElement("5 / 10 min")
@@ -722,8 +722,12 @@ class AutoFarm extends ModernUtils {
         this.$button2 = this.getButtonElement("20 / 40 min")
         this.$button2.click(() => this.setDuration(2));
 
+        // NUEVO: Botón Farmear Ya
+        this.$forceBtn = this.getButtonElement("🚜 Farmear Ya");
+        this.$forceBtn.click(() => this.forceFarm());
+
         this.setDuration(this.duration);
-        this.$buttonBox.append(this.$button1, this.$button2)
+        this.$buttonBox.append(this.$button1, this.$button2, this.$forceBtn);
 
         return this.$container;
     }
@@ -745,23 +749,34 @@ class AutoFarm extends ModernUtils {
         if (duration === 2) this.$button2.addClass('disabled');
     }
 
-    async execute() {
-        if (!this.active) return false;
-
-        // NUEVO: Si acabamos de pedir recursos, bloqueamos el bot 10 segundos
-        // para dar tiempo al servidor de Grepolis a actualizar los datos.
-        if (Date.now() - this.last_farm_time < 10000) {
-            return false; 
-        }
-
-        const next_collection = this.getNextCollection();
-        console.log('Next collection in', next_collection);
-        if (next_collection > 0) return false;
-
+    // NUEVO: Función para forzar el farmeo
+    async forceFarm() {
+        if (this.is_farming) return;
+        this.is_farming = true;
+        this.$forceBtn.text("Farmeando...");
+        
         this.polis_list = this.generateList();
         await this.claim();
+        
+        this.last_farm_time = Date.now();
+        this.is_farming = false;
+        this.$forceBtn.text("🚜 Farmear Ya");
+    }
 
-        this.last_farm_time = Date.now(); // Guardar el momento exacto
+    async execute() {
+        if (!this.active) return false;
+        if (this.is_farming) return false; // Evitar conflictos si se está forzando
+
+        if (Date.now() - this.last_farm_time < 10000) return false; 
+
+        const next_collection = this.getNextCollection();
+        if (next_collection > 0) return false;
+
+        this.is_farming = true;
+        this.polis_list = this.generateList();
+        await this.claim();
+        this.last_farm_time = Date.now();
+        this.is_farming = false;
         return true;
     }
 
@@ -777,7 +792,6 @@ class AutoFarm extends ModernUtils {
             const { on_small_island, island_id, id } = town.attributes;
             if (on_small_island || islands_list.has(island_id)) continue;
 
-            // Check the min percent for each town
             const { wood, stone, iron, storage } = uw.ITowns.getTown(id).resources();
             minResource = Math.min(wood, stone, iron);
             min_percent = minResource / storage;
@@ -788,7 +802,6 @@ class AutoFarm extends ModernUtils {
 
         return polis_list;
     };
-
 
     getNextCollection = () => {
         const { models } = uw.MM.getCollections().FarmTownPlayerRelation[0];
@@ -812,7 +825,6 @@ class AutoFarm extends ModernUtils {
         const seconds = maxLootableTime - Math.floor(Date.now() / 1000);
         return seconds > 0 ? seconds * 1000 : 0;
     };
-
 
     async claim() {
         const isCaptainActive = uw.GameDataPremium.isAdvisorActivated('captain');
@@ -868,7 +880,6 @@ class AutoFarm extends ModernUtils {
         setTimeout(() => uw.WMap.removeFarmTownLootCooldownIconAndRefreshLootTimers(), 2000);
     }
 
-    /* Claim resources from a single polis */
     claimSingle = (town_id, farm_town_id, relation_id, option = 1) => {
         const data = {
             model_url: `FarmTownPlayerRelation/${relation_id}`,
@@ -876,8 +887,8 @@ class AutoFarm extends ModernUtils {
             arguments: {
                 farm_town_id: farm_town_id,
                 type: 'resources',
-                option: option, // Retorno la compatibilidad original
-                time_option: option, // Y añado esta por pura seguridad
+                option: option,
+                time_option: option, 
             },
             town_id: town_id,
         };
@@ -885,7 +896,7 @@ class AutoFarm extends ModernUtils {
     };
 
     claimMultiple = (base = 300, boost = 600) =>
-        new Promise((myResolve, myReject) => {
+        new Promise((myResolve) => {
             const polis_list = this.generateList();
             let data = {
                 towns: polis_list,
@@ -897,7 +908,7 @@ class AutoFarm extends ModernUtils {
         });
 
     fakeOpening = () =>
-        new Promise((myResolve, myReject) => {
+        new Promise((myResolve) => {
             uw.gpAjax.ajaxGet('farm_town_overviews', 'index', {}, false, async () => {
                 await this.sleep(10);
                 await this.fakeUpdate();
@@ -906,15 +917,13 @@ class AutoFarm extends ModernUtils {
         });
 
     fakeSelectAll = () =>
-        new Promise((myResolve, myReject) => {
-            const data = {
-                town_ids: this.polislist,
-            };
+        new Promise((myResolve) => {
+            const data = { town_ids: this.polis_list };
             uw.gpAjax.ajaxGet('farm_town_overviews', 'get_farm_towns_from_multiple_towns', data, false, () => myResolve());
         });
 
     fakeUpdate = () =>
-        new Promise((myResolve, myReject) => {
+        new Promise((myResolve) => {
             const town = uw.ITowns.getCurrentTown();
             const { attributes: booty } = town.getResearches();
             const { attributes: trade_office } = town.getBuildings();
