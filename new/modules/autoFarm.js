@@ -1,6 +1,11 @@
 class AutoFarm extends ModernUtils {
     constructor() {
         super();
+
+        // LOG MAESTRO DE VERSIÓN DEL PROYECTO
+        const VERSION = "v2.5.0"; // Cambia este número con cada actualización importante
+        console.log(`%c🚀 ModernBot ${VERSION} cargado y listo para conquistar Grepolis!`, "color: #ffffff; font-size: 16px; font-weight: bold; background: linear-gradient(90deg, #4a90e2, #003366); padding: 10px 20px; border-radius: 5px; box-shadow: 0 4px 6px rgba(0,0,0,0.3); border: 1px solid #7eb8f5;");
+
         this.active = this.loadSettings('farm_active', false);
         this.duration = this.loadSettings('farm_duration', 1);
         this.last_farm_time = 0; 
